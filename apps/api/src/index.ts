@@ -11,6 +11,9 @@ import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import leadsRouter from './routes/leads.js';
 import recordingsRouter from './routes/recordings.js';
+import emailsRouter from './routes/emails.js';
+import templatesRouter from './routes/templates.js';
+import trackingRouter from './routes/tracking.js';
 
 async function main() {
   // Validate config
@@ -49,6 +52,9 @@ async function main() {
   app.use('/users', usersRouter);
   app.use('/leads', leadsRouter);
   app.use('/recordings', recordingsRouter);
+  app.use('/emails', emailsRouter);
+  app.use('/templates', templatesRouter);
+  app.use('/track', trackingRouter);
 
   // Error handler
   app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

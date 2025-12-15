@@ -18,6 +18,7 @@ export const config = {
 
   // AI
   openaiApiKey: process.env.OPENAI_API_KEY || '',
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
 
   // OAuth
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
