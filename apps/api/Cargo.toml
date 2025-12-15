@@ -51,9 +51,9 @@ anyhow = "1"
 # Validation
 validator = { version = "0.16", features = ["derive"] }
 
-# AWS S3 (R2 compatible)
-aws-sdk-s3 = "1"
-aws-config = "1"
+# AWS S3 (R2 compatible) - commented out until R2 is needed
+# aws-sdk-s3 = "1"
+# aws-config = "1"
 
 [dev-dependencies]
 tokio-test = "0.4"
