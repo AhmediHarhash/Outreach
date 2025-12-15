@@ -1,3 +1,8 @@
+/**
+ * Authentication Routes
+ * With rate limiting and enhanced security
+ */
+
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -7,39 +12,72 @@ import { v4 as uuidv4 } from 'uuid';
 import { pool } from '../db.js';
 import { config } from '../config.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import {
+  loginLimiter,
+  registerLimiter,
+  refreshLimiter,
+  bruteForceProtection,
+  recordFailedAttempt,
+  resetFailedAttempts,
+} from '../middleware/rateLimiter.js';
 
 const router = Router();
 
-// Validation schemas
+// ============================================================================
+// JWT CONFIGURATION
+// ============================================================================
+
+const JWT_ISSUER = 'outreach-api';
+const JWT_AUDIENCE = 'outreach-app';
+
+// ============================================================================
+// VALIDATION SCHEMAS
+// ============================================================================
+
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  fullName: z.string().min(1).optional(),
+  email: z.string().email().max(255).transform(e => e.toLowerCase().trim()),
+  password: z.string().min(8).max(128),
+  fullName: z.string().min(1).max(100).optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
-  deviceId: z.string().default(() => uuidv4()),
-  deviceName: z.string().optional(),
+  email: z.string().email().max(255).transform(e => e.toLowerCase().trim()),
+  password: z.string().max(128),
+  deviceId: z.string().uuid().optional().default(() => uuidv4()),
+  deviceName: z.string().max(100).optional(),
 });
 
 const refreshSchema = z.object({
-  refreshToken: z.string(),
-  deviceId: z.string(),
+  refreshToken: z.string().min(1).max(256),
+  deviceId: z.string().uuid(),
 });
 
-// Helper functions
-function createAccessToken(user: { id: string; email: string; subscription_tier: string; token_version: number }) {
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+interface TokenUser {
+  id: string;
+  email: string;
+  subscription_tier: string;
+  token_version: number;
+}
+
+function createAccessToken(user: TokenUser): string {
   return jwt.sign(
     {
-      id: user.id,
+      sub: user.id, // Standard claim for subject
       email: user.email,
       subscriptionTier: user.subscription_tier,
       tokenVersion: user.token_version,
     },
     config.jwtSecret,
-    { expiresIn: config.jwtAccessExpirySecs }
+    {
+      expiresIn: config.jwtAccessExpirySecs,
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      algorithm: 'HS256',
+    }
   );
 }
 
@@ -64,18 +102,45 @@ async function createRefreshToken(
   return token;
 }
 
+function sanitizeUser(user: any) {
+  return {
+    id: user.id,
+    email: user.email,
+    fullName: user.full_name,
+    avatarUrl: user.avatar_url,
+    subscriptionTier: user.subscription_tier,
+    emailVerified: user.email_verified,
+    locale: user.locale,
+    timezone: user.timezone,
+    createdAt: user.created_at,
+  };
+}
+
+// ============================================================================
+// ROUTES
+// ============================================================================
+
 // POST /auth/register
-router.post('/register', async (req, res) => {
+// Rate limited: 3 registrations per hour per IP
+router.post('/register', registerLimiter, async (req, res) => {
   try {
     const body = registerSchema.parse(req.body);
 
     // Check if user exists
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [body.email.toLowerCase()]);
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [body.email]
+    );
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'User already exists' });
+      return res.status(409).json({
+        error: {
+          code: 'USER_EXISTS',
+          message: 'An account with this email already exists',
+        },
+      });
     }
 
-    // Hash password
+    // Hash password with cost factor 12
     const passwordHash = await bcrypt.hash(body.password, 12);
 
     // Create user
@@ -83,103 +148,140 @@ router.post('/register', async (req, res) => {
       `INSERT INTO users (email, password_hash, full_name)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [body.email.toLowerCase(), passwordHash, body.fullName || null]
+      [body.email, passwordHash, body.fullName || null]
     );
     const user = userResult.rows[0];
 
     // Create default settings
     await pool.query('INSERT INTO user_settings (user_id) VALUES ($1)', [user.id]);
 
-    // Generate device ID
+    // Generate device ID for the new registration
     const deviceId = uuidv4();
 
     // Create tokens
     const accessToken = createAccessToken(user);
-    const refreshToken = await createRefreshToken(user.id, deviceId, 'Web Registration', user.token_version);
+    const refreshToken = await createRefreshToken(
+      user.id,
+      deviceId,
+      'Web Registration',
+      user.token_version
+    );
 
     // Log activity
     await pool.query(
-      `INSERT INTO activity_log (user_id, activity_type, metadata) VALUES ($1, 'register', '{}')`,
-      [user.id]
+      `INSERT INTO activity_log (user_id, activity_type, metadata) VALUES ($1, 'register', $2)`,
+      [user.id, JSON.stringify({ ip: req.ip })]
     );
 
     res.status(201).json({
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.full_name,
-        subscriptionTier: user.subscription_tier,
-        emailVerified: user.email_verified,
-        locale: user.locale,
-        timezone: user.timezone,
-        createdAt: user.created_at,
-      },
+      user: sanitizeUser(user),
       accessToken,
       refreshToken,
       expiresIn: config.jwtAccessExpirySecs,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Validation error', details: err.errors });
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input',
+          details: err.errors,
+        },
+      });
     }
     console.error('Register error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred during registration',
+      },
+    });
   }
 });
 
 // POST /auth/login
-router.post('/login', async (req, res) => {
+// Rate limited: 5 attempts per 15 minutes per IP
+// Brute force protection: progressive blocking after repeated failures
+router.post('/login', bruteForceProtection, loginLimiter, async (req, res) => {
   try {
     const body = loginSchema.parse(req.body);
 
     // Find user
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [body.email.toLowerCase()]);
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [body.email]
+    );
+
     if (userResult.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      recordFailedAttempt(req);
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password',
+        },
+      });
     }
+
     const user = userResult.rows[0];
 
     // Verify password
     if (!user.password_hash || !(await bcrypt.compare(body.password, user.password_hash))) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      recordFailedAttempt(req);
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password',
+        },
+      });
     }
+
+    // Success - reset failed attempts
+    resetFailedAttempts(req);
 
     // Create tokens
     const accessToken = createAccessToken(user);
-    const refreshToken = await createRefreshToken(user.id, body.deviceId, body.deviceName || null, user.token_version);
+    const refreshToken = await createRefreshToken(
+      user.id,
+      body.deviceId,
+      body.deviceName || null,
+      user.token_version
+    );
 
     // Log activity
     await pool.query(
       `INSERT INTO activity_log (user_id, activity_type, metadata) VALUES ($1, 'login', $2)`,
-      [user.id, JSON.stringify({ device_id: body.deviceId })]
+      [user.id, JSON.stringify({ device_id: body.deviceId, ip: req.ip })]
     );
 
     res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.full_name,
-        subscriptionTier: user.subscription_tier,
-        emailVerified: user.email_verified,
-        locale: user.locale,
-        timezone: user.timezone,
-        createdAt: user.created_at,
-      },
+      user: sanitizeUser(user),
       accessToken,
       refreshToken,
       expiresIn: config.jwtAccessExpirySecs,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Validation error', details: err.errors });
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input',
+          details: err.errors,
+        },
+      });
     }
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred during login',
+      },
+    });
   }
 });
 
 // POST /auth/refresh
-router.post('/refresh', async (req, res) => {
+// Rate limited: 30 refreshes per hour per IP
+router.post('/refresh', refreshLimiter, async (req, res) => {
   try {
     const body = refreshSchema.parse(req.body);
     const tokenHash = crypto.createHash('sha256').update(body.refreshToken).digest('hex');
@@ -194,47 +296,64 @@ router.post('/refresh', async (req, res) => {
     );
 
     if (tokenResult.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_REFRESH_TOKEN',
+          message: 'Invalid or expired refresh token',
+        },
+      });
     }
 
     const storedToken = tokenResult.rows[0];
 
-    // Check token version matches
+    // Check token version matches (for global logout)
     if (storedToken.token_version !== storedToken.user_token_version) {
-      return res.status(401).json({ error: 'Token has been revoked' });
+      return res.status(401).json({
+        error: {
+          code: 'TOKEN_REVOKED',
+          message: 'This token has been revoked',
+        },
+      });
     }
 
     // Get user
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [storedToken.user_id]);
     const user = userResult.rows[0];
 
-    // Rotate refresh token
-    const newRefreshToken = await createRefreshToken(user.id, body.deviceId, storedToken.device_name, user.token_version);
+    // Rotate refresh token (security best practice)
+    const newRefreshToken = await createRefreshToken(
+      user.id,
+      body.deviceId,
+      storedToken.device_name,
+      user.token_version
+    );
 
     // Create new access token
     const accessToken = createAccessToken(user);
 
     res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.full_name,
-        subscriptionTier: user.subscription_tier,
-        emailVerified: user.email_verified,
-        locale: user.locale,
-        timezone: user.timezone,
-        createdAt: user.created_at,
-      },
+      user: sanitizeUser(user),
       accessToken,
       refreshToken: newRefreshToken,
       expiresIn: config.jwtAccessExpirySecs,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Validation error', details: err.errors });
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input',
+          details: err.errors,
+        },
+      });
     }
     console.error('Refresh error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred during token refresh',
+      },
+    });
   }
 });
 
@@ -249,26 +368,39 @@ router.post('/logout', authMiddleware, async (req: AuthRequest, res: Response) =
     res.json({ success: true });
   } catch (err) {
     console.error('Logout error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred during logout',
+      },
+    });
   }
 });
 
 // POST /auth/logout-all
 router.post('/logout-all', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    // Increment token version to invalidate all refresh tokens
-    await pool.query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [req.user!.id]);
+    // Increment token version to invalidate ALL refresh tokens
+    await pool.query(
+      'UPDATE users SET token_version = token_version + 1 WHERE id = $1',
+      [req.user!.id]
+    );
 
     // Log activity
     await pool.query(
-      `INSERT INTO activity_log (user_id, activity_type) VALUES ($1, 'logout_all')`,
-      [req.user!.id]
+      `INSERT INTO activity_log (user_id, activity_type, metadata) VALUES ($1, 'logout_all', $2)`,
+      [req.user!.id, JSON.stringify({ ip: req.ip })]
     );
 
     res.json({ success: true });
   } catch (err) {
     console.error('Logout all error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred',
+      },
+    });
   }
 });
 
@@ -277,27 +409,92 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [req.user!.id]);
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'User not found',
+        },
+      });
     }
-    const user = userResult.rows[0];
 
+    const user = userResult.rows[0];
     res.json({
-      id: user.id,
-      email: user.email,
-      fullName: user.full_name,
-      avatarUrl: user.avatar_url,
-      subscriptionTier: user.subscription_tier,
+      ...sanitizeUser(user),
       subscriptionExpiresAt: user.subscription_expires_at,
-      emailVerified: user.email_verified,
-      locale: user.locale,
-      timezone: user.timezone,
       dataRegion: user.data_region,
-      createdAt: user.created_at,
       updatedAt: user.updated_at,
     });
   } catch (err) {
     console.error('Get me error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred',
+      },
+    });
+  }
+});
+
+// GET /auth/sessions - List active sessions
+router.get('/sessions', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT device_id, device_name, created_at, last_used_at
+       FROM refresh_tokens
+       WHERE user_id = $1 AND expires_at > NOW()
+       ORDER BY last_used_at DESC`,
+      [req.user!.id]
+    );
+
+    res.json({
+      sessions: result.rows.map(row => ({
+        deviceId: row.device_id,
+        deviceName: row.device_name,
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at,
+      })),
+    });
+  } catch (err) {
+    console.error('Get sessions error:', err);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred',
+      },
+    });
+  }
+});
+
+// DELETE /auth/sessions/:deviceId - Revoke specific session
+router.delete('/sessions/:deviceId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { deviceId } = req.params;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(deviceId)) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_DEVICE_ID',
+          message: 'Invalid device ID format',
+        },
+      });
+    }
+
+    await pool.query(
+      'DELETE FROM refresh_tokens WHERE user_id = $1 AND device_id = $2',
+      [req.user!.id, deviceId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete session error:', err);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An error occurred',
+      },
+    });
   }
 });
 

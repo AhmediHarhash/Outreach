@@ -58,17 +58,36 @@ export interface BulkEmailParams {
   personalizePerLead?: boolean;
 }
 
+// Generate secure tracking ID using HMAC (must match tracking.ts)
+function generateSecureTrackingId(emailId: string): string {
+  return crypto
+    .createHmac('sha256', config.jwtSecret)
+    .update(emailId)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+// Get the API base URL (different from webAppUrl which is frontend)
+function getApiBaseUrl(): string {
+  // In production, use the API domain; in dev, use localhost
+  if (config.environment === 'production') {
+    // Use the API URL without trailing slash
+    return process.env.API_PUBLIC_URL || 'https://api.outreach.hekax.com';
+  }
+  return `http://localhost:${config.port}`;
+}
+
 // Generate tracking pixel URL
 export function generateTrackingPixel(emailId: string): string {
-  const trackingId = crypto.createHash('sha256').update(emailId + config.jwtSecret).digest('hex').slice(0, 16);
-  return `${config.webAppUrl}/api/track/open/${emailId}/${trackingId}`;
+  const trackingId = generateSecureTrackingId(emailId);
+  return `${getApiBaseUrl()}/track/open/${emailId}/${trackingId}`;
 }
 
 // Generate tracked link
 export function generateTrackedLink(emailId: string, originalUrl: string, linkIndex: number): string {
-  const linkId = crypto.createHash('sha256').update(`${emailId}:${linkIndex}:${config.jwtSecret}`).digest('hex').slice(0, 16);
-  // Store the original URL mapping
-  return `${config.webAppUrl}/api/track/click/${emailId}/${linkId}?url=${encodeURIComponent(originalUrl)}`;
+  // Use same tracking ID for all links in an email (simpler, same security)
+  const linkId = generateSecureTrackingId(emailId);
+  return `${getApiBaseUrl()}/track/click/${emailId}/${linkId}?url=${encodeURIComponent(originalUrl)}`;
 }
 
 // Inject tracking into HTML
