@@ -1,0 +1,56 @@
+# Rust
+/target/
+apps/desktop/target/
+apps/api/target/
+Cargo.lock
+*.rs.bk
+
+# Node.js
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Debug
+debug/
+*.pdb
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib

@@ -1,0 +1,153 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  Voice Copilot Windows Installer
+  Build with: cargo wix
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product
+        Id='*'
+        Name='Voice Copilot'
+        UpgradeCode='A1B2C3D4-E5F6-7890-ABCD-EF1234567890'
+        Manufacturer='HEKAX'
+        Language='1033'
+        Codepage='1252'
+        Version='0.1.0'>
+
+        <Package Id='*'
+            Keywords='Installer'
+            Description='Voice Copilot - Real-time AI assistant for voice calls'
+            Manufacturer='HEKAX'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252'/>
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
+        <Property Id='DiskPrompt' Value='Voice Copilot Installation'/>
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='ProgramFiles64Folder' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='Voice Copilot'>
+                    <Component Id='License' Guid='*'>
+                        <File Id='LicenseFile'
+                            Name='License.rtf'
+                            DiskId='1'
+                            Source='wix\License.rtf'
+                            KeyPath='yes'/>
+                    </Component>
+
+                    <Directory Id='Bin' Name='bin'>
+                        <Component Id='Path' Guid='A2B3C4D5-E6F7-8901-BCDE-F23456789012' KeyPath='yes'>
+                            <Environment
+                                Id='PATH'
+                                Name='PATH'
+                                Value='[Bin]'
+                                Permanent='no'
+                                Part='last'
+                                Action='set'
+                                System='yes'/>
+                        </Component>
+                        <Component Id='binary0' Guid='*'>
+                            <File
+                                Id='exe0'
+                                Name='voice-copilot.exe'
+                                DiskId='1'
+                                Source='target\release\voice-copilot.exe'
+                                KeyPath='yes'/>
+                        </Component>
+                    </Directory>
+                </Directory>
+            </Directory>
+
+            <!-- Start Menu Shortcut -->
+            <Directory Id='ProgramMenuFolder' Name='Programs'>
+                <Directory Id='ApplicationProgramsFolder' Name='Voice Copilot'>
+                    <Component Id='ApplicationShortcut' Guid='B3C4D5E6-F789-0123-CDEF-456789012345'>
+                        <Shortcut Id='ApplicationStartMenuShortcut'
+                            Name='Voice Copilot'
+                            Description='Real-time AI assistant for voice calls'
+                            Target='[#exe0]'
+                            WorkingDirectory='Bin'/>
+                        <RemoveFolder Id='CleanUpShortCut' Directory='ApplicationProgramsFolder' On='uninstall'/>
+                        <RegistryValue Root='HKCU' Key='Software\VoiceCopilot' Name='installed' Type='integer' Value='1' KeyPath='yes'/>
+                    </Component>
+                </Directory>
+            </Directory>
+
+            <!-- Desktop Shortcut -->
+            <Directory Id='DesktopFolder' Name='Desktop'>
+                <Component Id='DesktopShortcut' Guid='C4D5E6F7-8901-2345-DEF0-567890123456'>
+                    <Shortcut Id='DesktopShortcutLink'
+                        Name='Voice Copilot'
+                        Description='Real-time AI assistant for voice calls'
+                        Target='[#exe0]'
+                        WorkingDirectory='Bin'/>
+                    <RegistryValue Root='HKCU' Key='Software\VoiceCopilot' Name='desktop' Type='integer' Value='1' KeyPath='yes'/>
+                </Component>
+            </Directory>
+        </Directory>
+
+        <Feature
+            Id='Binaries'
+            Title='Application'
+            Description='Installs Voice Copilot executable'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'
+            AllowAdvertise='no'
+            Display='expand'
+            Absent='disallow'>
+
+            <ComponentRef Id='License'/>
+            <ComponentRef Id='binary0'/>
+
+            <Feature
+                Id='Environment'
+                Title='PATH Environment Variable'
+                Description='Add the install location to PATH'
+                Level='1'
+                Absent='allow'>
+                <ComponentRef Id='Path'/>
+            </Feature>
+
+            <Feature
+                Id='StartMenu'
+                Title='Start Menu Shortcut'
+                Description='Add shortcut to Start Menu'
+                Level='1'
+                Absent='allow'>
+                <ComponentRef Id='ApplicationShortcut'/>
+            </Feature>
+
+            <Feature
+                Id='Desktop'
+                Title='Desktop Shortcut'
+                Description='Add shortcut to Desktop'
+                Level='1'
+                Absent='allow'>
+                <ComponentRef Id='DesktopShortcut'/>
+            </Feature>
+        </Feature>
+
+        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+
+        <Icon Id='ProductICO' SourceFile='assets\icon.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='ProductICO' />
+        <Property Id='ARPHELPLINK' Value='https://github.com/HEKAX/voice-copilot'/>
+
+        <UI>
+            <UIRef Id='WixUI_FeatureTree'/>
+            <Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomizeDlg' Order='99'>1</Publish>
+            <Publish Dialog='CustomizeDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg' Order='99'>1</Publish>
+        </UI>
+
+        <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf'/>
+        <WixVariable Id='WixUIBannerBmp' Value='wix\Banner.bmp'/>
+        <WixVariable Id='WixUIDialogBmp' Value='wix\Dialog.bmp'/>
+
+    </Product>
+</Wix>

@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/desktop",
+    "apps/api",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["AhmediHarhash"]
+license = "MIT"
+repository = "https://github.com/AhmediHarhash/Outreach"
+
+[workspace.dependencies]
+# Shared dependencies across Rust apps
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1

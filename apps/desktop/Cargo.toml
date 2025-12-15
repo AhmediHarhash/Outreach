@@ -1,0 +1,113 @@
+[package]
+name = "voice-copilot"
+version = "0.1.0"
+edition = "2021"
+authors = ["AhmediHarhash"]
+description = "Real-time AI voice assistant for sales calls, interviews, and technical discussions"
+license = "MIT"
+repository = "https://github.com/AhmediHarhash/voice-copilot"
+
+[dependencies]
+# ============================================
+# UI FRAMEWORK - Dioxus with native renderer
+# ============================================
+dioxus = { version = "0.5", features = ["desktop"] }
+
+# ============================================
+# ASYNC RUNTIME
+# ============================================
+tokio = { version = "1.35", features = ["full"] }
+futures = "0.3"
+async-stream = "0.3"
+async-trait = "0.1"
+
+# ============================================
+# AUDIO CAPTURE
+# ============================================
+cpal = "0.15"                     # Cross-platform audio I/O
+ringbuf = "0.4"                   # Lock-free ring buffer for audio
+rubato = "0.15"                   # High-quality resampling
+hound = "3.5"                     # WAV encoding for debug
+
+# ============================================
+# NETWORKING
+# ============================================
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+url = "2"
+eventsource-stream = "0.2"        # SSE parsing for streaming LLMs
+
+# ============================================
+# AI PROVIDERS
+# ============================================
+# OpenAI (GPT-4o, GPT-4o-mini, Realtime API)
+async-openai = "0.24"
+
+# Google Gemini (2.0 Flash)
+# Using reqwest directly - more control over streaming
+
+# Anthropic Claude (3.5 Sonnet)
+# Using reqwest directly - better streaming support
+
+# ============================================
+# SYSTEM INTEGRATION
+# ============================================
+tray-icon = "0.17"                # System tray
+global-hotkey = "0.6"             # Global keyboard shortcuts
+auto-launch = "0.5"               # Start on system boot
+native-dialog = "0.7"             # Native file/message dialogs
+
+# ============================================
+# DATA & SERIALIZATION
+# ============================================
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# ============================================
+# SECURITY
+# ============================================
+keyring = "3"                     # OS keychain for API keys
+base64 = "0.22"
+
+# ============================================
+# UTILITIES
+# ============================================
+anyhow = "1"                      # Error handling
+thiserror = "1"                   # Custom errors
+tracing = "0.1"                   # Structured logging
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "5"                        # Standard directories
+parking_lot = "0.12"              # Better mutexes
+once_cell = "1"                   # Lazy statics
+bytes = "1"                       # Byte buffers
+regex = "1"                       # Regular expressions
+getrandom = "0.2"                 # Random number generation
+http = "1"                        # HTTP types for WebSocket
+
+# ============================================
+# WINDOWS-SPECIFIC
+# ============================================
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_System_Com",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_UI_WindowsAndMessaging",
+]}
+sysinfo = "0.31"
+
+[build-dependencies]
+embed-resource = "2"              # Windows icon embedding
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1                     # Faster dev builds with some optimization

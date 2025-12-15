@@ -1,0 +1,17 @@
+{
+  "name": "outreach",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Outreach - Voice capture, scraping, CV processing, and email automation",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "cd apps/web && npm run dev",
+    "build:web": "cd apps/web && npm run build",
+    "start:web": "cd apps/web && npm run start",
+    "lint:web": "cd apps/web && npm run lint"
+  },
+  "author": "AhmediHarhash",
+  "license": "MIT"
+}
