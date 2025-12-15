@@ -20,6 +20,7 @@ import recordingsRouter from './routes/recordings.js';
 import emailsRouter from './routes/emails.js';
 import templatesRouter from './routes/templates.js';
 import trackingRouter from './routes/tracking.js';
+import cvRouter from './routes/cv.js';
 
 async function main() {
   // Validate config
@@ -125,6 +126,7 @@ async function main() {
   app.use('/recordings', recordingsRouter);
   app.use('/emails', emailsRouter);
   app.use('/templates', templatesRouter);
+  app.use('/cv', cvRouter);
 
   // Tracking (public, no auth - but has HMAC verification)
   app.use('/track', trackingRouter);
