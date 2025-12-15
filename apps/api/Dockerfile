@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy manifests
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 
 # Create dummy main.rs for dependency caching
 RUN mkdir src && echo "fn main() {}" > src/main.rs
@@ -45,12 +45,12 @@ COPY src/db/migrations ./src/db/migrations
 RUN useradd -m -u 1000 hekax
 USER hekax
 
-# Expose port
-EXPOSE 8080
+# Expose port (Railway sets PORT env var)
+EXPOSE 3001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/api/v1/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3001}/health || exit 1
 
 # Run
 CMD ["./hekax-api"]
