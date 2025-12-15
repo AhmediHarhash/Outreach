@@ -1,56 +1,49 @@
-# Build stage - using nightly for edition2024 support
-FROM rustlang/rust:nightly-slim as builder
+# Build stage
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Copy package files
+COPY package*.json ./
 
-# Copy manifests
-COPY Cargo.toml ./
+# Install dependencies
+RUN npm ci
 
-# Create dummy main.rs for dependency caching
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-# Build dependencies only
-RUN cargo build --release && rm -rf src
-
-# Copy actual source
+# Copy source
+COPY tsconfig.json ./
 COPY src ./src
 
-# Build the actual binary
-RUN touch src/main.rs && cargo build --release
+# Build TypeScript
+RUN npm run build
 
-# Runtime stage
-FROM debian:bookworm-slim
+# Production stage
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+# Copy package files
+COPY package*.json ./
 
-# Copy binary from builder
-COPY --from=builder /app/target/release/hekax-api /app/hekax-api
+# Install production dependencies only
+RUN npm ci --omit=dev
 
-# Copy migrations
+# Copy built files from builder
+COPY --from=builder /app/dist ./dist
+
+# Copy migrations (for reference)
 COPY src/db/migrations ./src/db/migrations
 
 # Create non-root user
-RUN useradd -m -u 1000 hekax
-USER hekax
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+USER nodejs
 
-# Expose port (Railway sets PORT env var)
+# Expose port
 EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-3001}/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-3001}/health || exit 1
 
 # Run
-CMD ["./hekax-api"]
+CMD ["node", "dist/index.js"]
