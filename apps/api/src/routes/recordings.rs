@@ -249,9 +249,10 @@ async fn get_presigned_upload_url(
     let r2_key = format!("recordings/{}/{}.webm", auth.id, id);
 
     // TODO: Generate presigned URL using aws-sdk-s3
-    // For now, return placeholder
+    // For now, return placeholder using config
+    let r2_url = std::env::var("R2_PUBLIC_URL").unwrap_or_else(|_| "https://storage.hekax.com".to_string());
     Ok(Json(serde_json::json!({
-        "upload_url": format!("https://r2.hekax.io/{}", r2_key),
+        "upload_url": format!("{}/{}", r2_url, r2_key),
         "r2_key": r2_key,
         "expires_in": 3600
     })))

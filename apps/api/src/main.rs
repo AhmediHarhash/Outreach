@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build router
     let app = Router::new()
-        .nest("/api/v1", routes::api_router())
+        .merge(routes::api_router())
         .layer(Extension(state))
         .layer(TraceLayer::new_for_http())
         .layer(cors_layer(&config));
