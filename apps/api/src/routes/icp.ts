@@ -4,9 +4,9 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
-import { query } from '../db.js';
-import { validateUUID, sanitizeString } from '../utils/validation.js';
+import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { pool } from '../db.js';
+import { isValidUUID, sanitizeString } from '../utils/validation.js';
 
 const router = Router();
 
@@ -17,9 +17,9 @@ router.use(authMiddleware);
  * GET /icp
  * List all ICP profiles for the user
  */
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const result = await query(
+    const result = await pool.query(
       `SELECT id, name, description, is_default,
               industries, company_size_min, company_size_max,
               funding_stages, countries, target_titles,
@@ -28,7 +28,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
        FROM icp_profiles
        WHERE user_id = $1
        ORDER BY is_default DESC, created_at DESC`,
-      [req.userId]
+      [req.user!.id]
     );
 
     res.json({
@@ -45,17 +45,17 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
  * GET /icp/:id
  * Get a specific ICP profile
  */
-router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
-    if (!validateUUID(id)) {
+    if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'Invalid ICP ID' });
     }
 
-    const result = await query(
+    const result = await pool.query(
       `SELECT * FROM icp_profiles WHERE id = $1 AND user_id = $2`,
-      [id, req.userId]
+      [id, req.user!.id]
     );
 
     if (result.rows.length === 0) {
@@ -73,7 +73,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
  * POST /icp
  * Create a new ICP profile
  */
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const {
       name,
@@ -118,13 +118,13 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     // If setting as default, unset other defaults first
     if (is_default) {
-      await query(
+      await pool.query(
         `UPDATE icp_profiles SET is_default = false WHERE user_id = $1`,
-        [req.userId]
+        [req.user!.id]
       );
     }
 
-    const result = await query(
+    const result = await pool.query(
       `INSERT INTO icp_profiles (
         user_id, name, description, is_default,
         industries, excluded_industries,
@@ -140,7 +140,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING *`,
       [
-        req.userId,
+        req.user!.id,
         sanitizeString(name),
         description ? sanitizeString(description) : null,
         is_default,
@@ -182,18 +182,18 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
  * PUT /icp/:id
  * Update an ICP profile
  */
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
-    if (!validateUUID(id)) {
+    if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'Invalid ICP ID' });
     }
 
     // Check ownership
-    const existing = await query(
+    const existing = await pool.query(
       `SELECT id FROM icp_profiles WHERE id = $1 AND user_id = $2`,
-      [id, req.userId]
+      [id, req.user!.id]
     );
 
     if (existing.rows.length === 0) {
@@ -241,13 +241,13 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     // If setting as default, unset other defaults first
     if (is_default) {
-      await query(
+      await pool.query(
         `UPDATE icp_profiles SET is_default = false WHERE user_id = $1 AND id != $2`,
-        [req.userId, id]
+        [req.user!.id, id]
       );
     }
 
-    const result = await query(
+    const result = await pool.query(
       `UPDATE icp_profiles SET
         name = COALESCE($1, name),
         description = COALESCE($2, description),
@@ -308,7 +308,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
         weight_fit,
         weight_accessibility,
         id,
-        req.userId,
+        req.user!.id,
       ]
     );
 
@@ -323,17 +323,17 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
  * DELETE /icp/:id
  * Delete an ICP profile
  */
-router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
-    if (!validateUUID(id)) {
+    if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'Invalid ICP ID' });
     }
 
-    const result = await query(
+    const result = await pool.query(
       `DELETE FROM icp_profiles WHERE id = $1 AND user_id = $2 RETURNING id`,
-      [id, req.userId]
+      [id, req.user!.id]
     );
 
     if (result.rows.length === 0) {
@@ -351,26 +351,26 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
  * POST /icp/:id/set-default
  * Set an ICP profile as the default
  */
-router.post('/:id/set-default', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/set-default', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
-    if (!validateUUID(id)) {
+    if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'Invalid ICP ID' });
     }
 
     // Unset all defaults first
-    await query(
+    await pool.query(
       `UPDATE icp_profiles SET is_default = false WHERE user_id = $1`,
-      [req.userId]
+      [req.user!.id]
     );
 
     // Set the specified profile as default
-    const result = await query(
+    const result = await pool.query(
       `UPDATE icp_profiles SET is_default = true, updated_at = NOW()
        WHERE id = $1 AND user_id = $2
        RETURNING *`,
-      [id, req.userId]
+      [id, req.user!.id]
     );
 
     if (result.rows.length === 0) {

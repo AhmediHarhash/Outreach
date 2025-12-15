@@ -4,10 +4,10 @@
  */
 
 import { Router, Response } from 'express';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { query } from '../db.js';
-import { validateUUID } from '../utils/validation.js';
+import { pool } from '../db.js';
+import { isValidUUID } from '../utils/validation.js';
 
 const router = Router();
 
@@ -21,7 +21,7 @@ const INTELLIGENCE_URL = process.env.INTELLIGENCE_WORKER_URL || 'http://localhos
  * POST /discovery/enrich-company
  * Enrich company data
  */
-router.post('/enrich-company', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/enrich-company', async (req: AuthRequest, res: Response) => {
   try {
     const { domain, sources } = req.body;
 
@@ -30,7 +30,7 @@ router.post('/enrich-company', async (req: AuthenticatedRequest, res: Response) 
     }
 
     // Get user's API credentials
-    const credentials = await getUserCredentials(req.userId!);
+    const credentials = await getUserCredentials(req.user!.id!);
 
     // Call intelligence worker
     const response = await fetch(`${INTELLIGENCE_URL}/api/v1/enrich/company`, {
@@ -39,7 +39,7 @@ router.post('/enrich-company', async (req: AuthenticatedRequest, res: Response) 
       body: JSON.stringify({
         domain,
         sources,
-        user_id: req.userId,
+        user_id: req.user!.id,
         ...credentials,
       }),
     });
@@ -56,7 +56,7 @@ router.post('/enrich-company', async (req: AuthenticatedRequest, res: Response) 
  * POST /discovery/find-contacts
  * Find contacts at a company
  */
-router.post('/find-contacts', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/find-contacts', async (req: AuthRequest, res: Response) => {
   try {
     const { domain, titles, departments, limit = 5 } = req.body;
 
@@ -64,7 +64,7 @@ router.post('/find-contacts', async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: 'Domain is required' });
     }
 
-    const credentials = await getUserCredentials(req.userId!);
+    const credentials = await getUserCredentials(req.user!.id!);
 
     const response = await fetch(`${INTELLIGENCE_URL}/api/v1/enrich/contacts`, {
       method: 'POST',
@@ -74,7 +74,7 @@ router.post('/find-contacts', async (req: AuthenticatedRequest, res: Response) =
         titles,
         departments,
         limit,
-        user_id: req.userId,
+        user_id: req.user!.id,
         ...credentials,
       }),
     });
@@ -91,7 +91,7 @@ router.post('/find-contacts', async (req: AuthenticatedRequest, res: Response) =
  * POST /discovery/verify-email
  * Verify an email address
  */
-router.post('/verify-email', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/verify-email', async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.body;
 
@@ -99,14 +99,14 @@ router.post('/verify-email', async (req: AuthenticatedRequest, res: Response) =>
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    const credentials = await getUserCredentials(req.userId!);
+    const credentials = await getUserCredentials(req.user!.id!);
 
     const response = await fetch(`${INTELLIGENCE_URL}/api/v1/enrich/verify-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        user_id: req.userId,
+        user_id: req.user!.id,
         hunter_key: credentials.hunter_key,
       }),
     });
@@ -123,17 +123,17 @@ router.post('/verify-email', async (req: AuthenticatedRequest, res: Response) =>
  * POST /discovery/discover
  * Discover new leads matching ICP
  */
-router.post('/discover', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/discover', async (req: AuthRequest, res: Response) => {
   try {
     const { icp_id, limit = 25, min_score = 60, sources } = req.body;
 
-    const credentials = await getUserCredentials(req.userId!);
+    const credentials = await getUserCredentials(req.user!.id!);
 
     const response = await fetch(`${INTELLIGENCE_URL}/api/v1/discover`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_id: req.userId,
+        user_id: req.user!.id,
         icp_id,
         limit,
         min_score,
@@ -154,23 +154,23 @@ router.post('/discover', async (req: AuthenticatedRequest, res: Response) => {
  * GET /discovery/pending
  * Get discovered leads pending review
  */
-router.get('/pending', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/pending', async (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const result = await query(
+    const result = await pool.query(
       `SELECT * FROM discovered_leads
        WHERE user_id = $1 AND status = 'new'
        ORDER BY preliminary_score DESC
        LIMIT $2 OFFSET $3`,
-      [req.userId, limit, offset]
+      [req.user!.id, limit, offset]
     );
 
-    const countResult = await query(
+    const countResult = await pool.query(
       `SELECT COUNT(*) as count FROM discovered_leads
        WHERE user_id = $1 AND status = 'new'`,
-      [req.userId]
+      [req.user!.id]
     );
 
     res.json({
@@ -188,12 +188,12 @@ router.get('/pending', async (req: AuthenticatedRequest, res: Response) => {
  * POST /discovery/:id/review
  * Review a discovered lead (accept/reject)
  */
-router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/review', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { action, rejection_reason } = req.body;
 
-    if (!validateUUID(id)) {
+    if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'Invalid lead ID' });
     }
 
@@ -202,9 +202,9 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Get the discovered lead
-    const leadResult = await query(
+    const leadResult = await pool.query(
       `SELECT * FROM discovered_leads WHERE id = $1 AND user_id = $2`,
-      [id, req.userId]
+      [id, req.user!.id]
     );
 
     if (leadResult.rows.length === 0) {
@@ -215,7 +215,7 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
 
     if (action === 'accept') {
       // Create actual lead
-      const newLeadResult = await query(
+      const newLeadResult = await pool.query(
         `INSERT INTO leads (
           user_id, company_name, company_domain, name, title, email,
           linkedin_url, company_data, status, source
@@ -223,7 +223,7 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'new', 'discovery')
         RETURNING id`,
         [
-          req.userId,
+          req.user!.id,
           discovered.company_name,
           discovered.company_domain,
           discovered.contact_name,
@@ -235,7 +235,7 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
       );
 
       // Update discovered lead status
-      await query(
+      await pool.query(
         `UPDATE discovered_leads
          SET status = 'accepted', reviewed_at = NOW(), accepted_at = NOW(),
              converted_lead_id = $2
@@ -249,7 +249,7 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
         lead_id: newLeadResult.rows[0].id,
       });
     } else if (action === 'reject') {
-      await query(
+      await pool.query(
         `UPDATE discovered_leads
          SET status = 'rejected', reviewed_at = NOW(), rejection_reason = $2
          WHERE id = $1`,
@@ -258,7 +258,7 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
 
       res.json({ success: true, action: 'rejected' });
     } else {
-      await query(
+      await pool.query(
         `UPDATE discovered_leads
          SET status = 'reviewed', reviewed_at = NOW()
          WHERE id = $1`,
@@ -277,16 +277,16 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response) => {
  * GET /discovery/scores
  * Get lead score distribution
  */
-router.get('/scores', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/scores', async (req: AuthRequest, res: Response) => {
   try {
-    const result = await query(
+    const result = await pool.query(
       `SELECT tier, COUNT(*) as count, AVG(total_score) as avg_score
        FROM lead_current_scores lcs
        JOIN leads l ON lcs.lead_id = l.id
        WHERE l.user_id = $1
        GROUP BY tier
        ORDER BY avg_score DESC`,
-      [req.userId]
+      [req.user!.id]
     );
 
     const distribution = {
@@ -321,7 +321,7 @@ router.get('/scores', async (req: AuthenticatedRequest, res: Response) => {
  * GET /discovery/scored-leads
  * Get scored leads
  */
-router.get('/scored-leads', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/scored-leads', async (req: AuthRequest, res: Response) => {
   try {
     const tier = req.query.tier as string;
     const minScore = parseInt(req.query.min_score as string) || 0;
@@ -329,7 +329,7 @@ router.get('/scored-leads', async (req: AuthenticatedRequest, res: Response) => 
     const offset = parseInt(req.query.offset as string) || 0;
 
     let whereClause = 'WHERE l.user_id = $1';
-    const params: any[] = [req.userId];
+    const params: any[] = [req.user!.id];
 
     if (tier) {
       params.push(tier);
@@ -343,7 +343,7 @@ router.get('/scored-leads', async (req: AuthenticatedRequest, res: Response) => 
 
     params.push(limit, offset);
 
-    const result = await query(
+    const result = await pool.query(
       `SELECT l.*, lcs.total_score, lcs.tier, lcs.intent_score,
               lcs.fit_score, lcs.accessibility_score, lcs.score_breakdown,
               lcs.calculated_at as scored_at
@@ -369,7 +369,7 @@ router.get('/scored-leads', async (req: AuthenticatedRequest, res: Response) => 
  * POST /discovery/credentials
  * Save user's enrichment API credentials
  */
-router.post('/credentials', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/credentials', async (req: AuthRequest, res: Response) => {
   try {
     const { service, api_key } = req.body;
 
@@ -386,12 +386,12 @@ router.post('/credentials', async (req: AuthenticatedRequest, res: Response) => 
     // For now, store as-is with a hint
     const keyHint = api_key.slice(-4);
 
-    await query(
+    await pool.query(
       `INSERT INTO enrichment_credentials (user_id, service, api_key_encrypted, api_key_hint, is_valid)
        VALUES ($1, $2, $3, $4, true)
        ON CONFLICT (user_id, service)
        DO UPDATE SET api_key_encrypted = $3, api_key_hint = $4, is_valid = true, updated_at = NOW()`,
-      [req.userId, service, Buffer.from(api_key), keyHint]
+      [req.user!.id, service, Buffer.from(api_key), keyHint]
     );
 
     res.json({
@@ -409,18 +409,18 @@ router.post('/credentials', async (req: AuthenticatedRequest, res: Response) => 
  * GET /discovery/credentials
  * Get user's configured credentials (hints only)
  */
-router.get('/credentials', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/credentials', async (req: AuthRequest, res: Response) => {
   try {
-    const result = await query(
+    const result = await pool.query(
       `SELECT service, api_key_hint, is_valid, last_validated_at, error_message,
               credits_remaining, credits_limit
        FROM enrichment_credentials
        WHERE user_id = $1`,
-      [req.userId]
+      [req.user!.id]
     );
 
     res.json({
-      credentials: result.rows.map((row) => ({
+      credentials: result.rows.map((row: any) => ({
         service: row.service,
         configured: true,
         hint: row.api_key_hint ? `****${row.api_key_hint}` : null,
@@ -440,13 +440,13 @@ router.get('/credentials', async (req: AuthenticatedRequest, res: Response) => {
  * DELETE /discovery/credentials/:service
  * Remove a credential
  */
-router.delete('/credentials/:service', async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/credentials/:service', async (req: AuthRequest, res: Response) => {
   try {
     const { service } = req.params;
 
-    await query(
+    await pool.query(
       `DELETE FROM enrichment_credentials WHERE user_id = $1 AND service = $2`,
-      [req.userId, service]
+      [req.user!.id, service]
     );
 
     res.json({ success: true });
@@ -458,7 +458,7 @@ router.delete('/credentials/:service', async (req: AuthenticatedRequest, res: Re
 
 // Helper function to get user's API credentials
 async function getUserCredentials(userId: string): Promise<Record<string, string>> {
-  const result = await query(
+  const result = await pool.query(
     `SELECT service, api_key_encrypted FROM enrichment_credentials
      WHERE user_id = $1 AND is_valid = true`,
     [userId]
