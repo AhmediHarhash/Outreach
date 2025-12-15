@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { AppHeader } from '@/components/layout';
 
 const STATUSES = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 
@@ -66,33 +67,7 @@ function LeadsPageContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard" className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold">H</span>
-                </div>
-                <span className="text-xl font-bold">Hekax</span>
-              </Link>
-            </div>
-            <nav className="flex items-center space-x-6">
-              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
-                Dashboard
-              </Link>
-              <Link href="/leads" className="text-foreground font-medium">
-                Leads
-              </Link>
-              <Link href="/recordings" className="text-muted-foreground hover:text-foreground">
-                Recordings
-              </Link>
-            </nav>
-            <div className="w-32"></div>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

@@ -19,6 +19,7 @@ import {
   MousePointer,
   Sparkles,
 } from 'lucide-react';
+import { AppHeader } from '@/components/layout';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -62,42 +63,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center space-x-4">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold">H</span>
-              </div>
-              <span className="text-xl font-bold">Hekax</span>
-            </div>
-            <nav className="flex items-center space-x-6">
-              <Link href="/dashboard" className="text-foreground font-medium">
-                Dashboard
-              </Link>
-              <Link href="/leads" className="text-muted-foreground hover:text-foreground">
-                Leads
-              </Link>
-              <Link href="/emails" className="text-muted-foreground hover:text-foreground">
-                Emails
-              </Link>
-              <Link href="/recordings" className="text-muted-foreground hover:text-foreground">
-                Recordings
-              </Link>
-            </nav>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-muted-foreground">{user?.email}</span>
-              <button
-                onClick={() => logout()}
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

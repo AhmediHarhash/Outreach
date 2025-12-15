@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ComposeEmailModal from './compose-modal';
+import { AppHeader } from '@/components/layout';
 
 // Psychology-driven color mapping for status
 const statusConfig: Record<string, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
@@ -104,46 +105,7 @@ function EmailsPageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Header */}
-      <header className="border-b border-white/5 bg-black/20 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard" className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                  <span className="text-white font-bold text-lg">O</span>
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
-                  Outreach
-                </span>
-              </Link>
-            </div>
-            <nav className="flex items-center space-x-1">
-              {[
-                { href: '/dashboard', label: 'Dashboard' },
-                { href: '/leads', label: 'Leads' },
-                { href: '/emails', label: 'Emails', active: true },
-                { href: '/recordings', label: 'Recordings' },
-              ].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    item.active
-                      ? 'bg-white/10 text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-white/40">{user?.email}</span>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader variant="gradient" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Hero Stats - Dopamine Dashboard */}

@@ -611,6 +611,213 @@ export interface CVTemplate {
   isPremium: boolean;
 }
 
+// ============================================================================
+// ICP (IDEAL CUSTOMER PROFILE) TYPES
+// ============================================================================
+
+export interface ICPProfile {
+  id: string;
+  name: string;
+  description?: string;
+  is_default: boolean;
+  industries: string[];
+  excluded_industries: string[];
+  company_size_min?: number;
+  company_size_max?: number;
+  revenue_min?: number;
+  revenue_max?: number;
+  funding_stages: string[];
+  min_funding_amount?: number;
+  recently_funded_days?: number;
+  tech_must_have: string[];
+  tech_nice_to_have: string[];
+  tech_avoid: string[];
+  countries: string[];
+  excluded_countries: string[];
+  regions: string[];
+  target_titles: string[];
+  target_departments: string[];
+  seniority_levels: string[];
+  require_recent_funding: boolean;
+  require_hiring_signals: boolean;
+  require_tech_change: boolean;
+  weight_intent: number;
+  weight_fit: number;
+  weight_accessibility: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateICPRequest {
+  name: string;
+  description?: string;
+  is_default?: boolean;
+  industries?: string[];
+  excluded_industries?: string[];
+  company_size_min?: number;
+  company_size_max?: number;
+  revenue_min?: number;
+  revenue_max?: number;
+  funding_stages?: string[];
+  min_funding_amount?: number;
+  recently_funded_days?: number;
+  tech_must_have?: string[];
+  tech_nice_to_have?: string[];
+  tech_avoid?: string[];
+  countries?: string[];
+  excluded_countries?: string[];
+  regions?: string[];
+  target_titles?: string[];
+  target_departments?: string[];
+  seniority_levels?: string[];
+  require_recent_funding?: boolean;
+  require_hiring_signals?: boolean;
+  require_tech_change?: boolean;
+  weight_intent?: number;
+  weight_fit?: number;
+  weight_accessibility?: number;
+}
+
+// ============================================================================
+// LEAD DISCOVERY TYPES
+// ============================================================================
+
+export interface EnrichmentResult {
+  success: boolean;
+  domain: string;
+  data: Record<string, unknown>;
+  sources_used: string[];
+  credits_used: number;
+  signals_detected: number;
+}
+
+export interface FindContactsRequest {
+  domain: string;
+  titles?: string[];
+  departments?: string[];
+  limit?: number;
+}
+
+export interface FindContactsResponse {
+  success: boolean;
+  domain: string;
+  contacts: DiscoveredContact[];
+  total: number;
+  sources_used: string[];
+}
+
+export interface DiscoveredContact {
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  email?: string;
+  email_verified?: boolean;
+  email_confidence?: number;
+  title?: string;
+  department?: string;
+  seniority?: string;
+  linkedin_url?: string;
+  phone?: string;
+  sources: string[];
+}
+
+export interface EmailVerificationResult {
+  success: boolean;
+  email: string;
+  valid?: boolean;
+  confidence: number;
+  details?: {
+    mx_records?: boolean;
+    smtp_check?: boolean;
+    disposable?: boolean;
+    webmail?: boolean;
+  };
+}
+
+export interface DiscoverLeadsRequest {
+  icp_id?: string;
+  limit?: number;
+  min_score?: number;
+  sources?: string[];
+}
+
+export interface DiscoverLeadsResponse {
+  success: boolean;
+  discovered: number;
+  above_threshold: number;
+  leads: DiscoveredLeadSummary[];
+}
+
+export interface DiscoveredLeadSummary {
+  company_name: string;
+  company_domain?: string;
+  industry?: string;
+  employee_count?: number;
+  funding_stage?: string;
+  score: number;
+  tier: 'hot' | 'warm' | 'nurture' | 'cold';
+  signals: string[];
+}
+
+export interface DiscoveredLead {
+  id: string;
+  company_name: string;
+  company_domain?: string;
+  contact_name?: string;
+  contact_title?: string;
+  contact_email?: string;
+  contact_linkedin?: string;
+  preliminary_score: number;
+  score_breakdown: Record<string, unknown>;
+  source?: string;
+  discovered_at: string;
+}
+
+export interface DiscoveredLeadsResponse {
+  leads: DiscoveredLead[];
+  count: number;
+  total: number;
+}
+
+export interface ScoreDistribution {
+  total_leads: number;
+  distribution: {
+    hot: { count: number; avg_score: number };
+    warm: { count: number; avg_score: number };
+    nurture: { count: number; avg_score: number };
+    cold: { count: number; avg_score: number };
+  };
+}
+
+export interface ScoredLead {
+  id: string;
+  company_name: string;
+  contact_name?: string;
+  email?: string;
+  total_score: number;
+  tier: 'hot' | 'warm' | 'nurture' | 'cold';
+  intent_score: number;
+  fit_score: number;
+  accessibility_score: number;
+  score_breakdown?: Record<string, unknown>;
+  scored_at?: string;
+}
+
+export interface ScoredLeadsResponse {
+  leads: ScoredLead[];
+  count: number;
+}
+
+export interface EnrichmentCredential {
+  service: string;
+  configured: boolean;
+  hint?: string;
+  is_valid: boolean;
+  error?: string;
+  credits_remaining?: number;
+  credits_limit?: number;
+}
+
 export interface TailorCVRequest {
   leadId?: string;
   jobTitle?: string;
@@ -794,5 +1001,136 @@ export const api = Object.assign(baseApi, {
   getCVTemplates: async (category?: string): Promise<{ templates: CVTemplate[] }> => {
     const query = category ? `?category=${category}` : '';
     return (baseApi as any).request(`/cv/templates${query}`);
+  },
+
+  // ============================================================================
+  // ICP (IDEAL CUSTOMER PROFILE)
+  // ============================================================================
+
+  // List ICP profiles
+  getICPProfiles: async (): Promise<{ profiles: ICPProfile[]; count: number }> => {
+    return (baseApi as any).request('/icp');
+  },
+
+  // Get single ICP profile
+  getICPProfile: async (id: string): Promise<ICPProfile> => {
+    return (baseApi as any).request(`/icp/${id}`);
+  },
+
+  // Create ICP profile
+  createICPProfile: async (data: CreateICPRequest): Promise<ICPProfile> => {
+    return (baseApi as any).request('/icp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update ICP profile
+  updateICPProfile: async (id: string, data: Partial<CreateICPRequest>): Promise<ICPProfile> => {
+    return (baseApi as any).request(`/icp/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete ICP profile
+  deleteICPProfile: async (id: string): Promise<{ success: boolean }> => {
+    return (baseApi as any).request(`/icp/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Set ICP as default
+  setDefaultICP: async (id: string): Promise<ICPProfile> => {
+    return (baseApi as any).request(`/icp/${id}/set-default`, {
+      method: 'POST',
+    });
+  },
+
+  // ============================================================================
+  // LEAD DISCOVERY
+  // ============================================================================
+
+  // Enrich company data
+  enrichCompany: async (domain: string, sources?: string[]): Promise<EnrichmentResult> => {
+    return (baseApi as any).request('/discovery/enrich-company', {
+      method: 'POST',
+      body: JSON.stringify({ domain, sources }),
+    });
+  },
+
+  // Find contacts at company
+  findContacts: async (params: FindContactsRequest): Promise<FindContactsResponse> => {
+    return (baseApi as any).request('/discovery/find-contacts', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
+  // Verify email
+  verifyEmail: async (email: string): Promise<EmailVerificationResult> => {
+    return (baseApi as any).request('/discovery/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  // Discover new leads
+  discoverLeads: async (params: DiscoverLeadsRequest): Promise<DiscoverLeadsResponse> => {
+    return (baseApi as any).request('/discovery/discover', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
+  // Get pending discovered leads
+  getPendingDiscoveries: async (limit?: number, offset?: number): Promise<DiscoveredLeadsResponse> => {
+    const query = new URLSearchParams();
+    if (limit) query.set('limit', String(limit));
+    if (offset) query.set('offset', String(offset));
+    return (baseApi as any).request(`/discovery/pending?${query}`);
+  },
+
+  // Review discovered lead
+  reviewDiscoveredLead: async (id: string, action: 'accept' | 'reject' | 'skip', rejectionReason?: string): Promise<{ success: boolean; action: string; lead_id?: string }> => {
+    return (baseApi as any).request(`/discovery/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ action, rejection_reason: rejectionReason }),
+    });
+  },
+
+  // Get score distribution
+  getScoreDistribution: async (): Promise<ScoreDistribution> => {
+    return (baseApi as any).request('/discovery/scores');
+  },
+
+  // Get scored leads
+  getScoredLeads: async (params?: { tier?: string; minScore?: number; limit?: number; offset?: number }): Promise<ScoredLeadsResponse> => {
+    const query = new URLSearchParams();
+    if (params?.tier) query.set('tier', params.tier);
+    if (params?.minScore) query.set('min_score', String(params.minScore));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    return (baseApi as any).request(`/discovery/scored-leads?${query}`);
+  },
+
+  // Save enrichment credentials
+  saveCredential: async (service: string, apiKey: string): Promise<{ success: boolean; hint: string }> => {
+    return (baseApi as any).request('/discovery/credentials', {
+      method: 'POST',
+      body: JSON.stringify({ service, api_key: apiKey }),
+    });
+  },
+
+  // Get configured credentials
+  getCredentials: async (): Promise<{ credentials: EnrichmentCredential[] }> => {
+    return (baseApi as any).request('/discovery/credentials');
+  },
+
+  // Delete credential
+  deleteCredential: async (service: string): Promise<{ success: boolean }> => {
+    return (baseApi as any).request(`/discovery/credentials/${service}`, {
+      method: 'DELETE',
+    });
   },
 });

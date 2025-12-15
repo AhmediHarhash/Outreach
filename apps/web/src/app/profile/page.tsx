@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, CVProfile, CVAnalysis, Skill, Experience, Education } from '@/lib/api';
+import { AppHeader } from '@/components/layout';
 
 // Skill Level Colors
 const skillLevelColors = {
@@ -173,13 +174,14 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-950">
+      <AppHeader variant="gradient" />
+      <div className="max-w-6xl mx-auto p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white">CV Profile</h1>
-            <p className="text-gray-400 mt-1">Manage your professional profile and generate tailored CVs</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">CV Profile</h1>
+            <p className="text-gray-400 mt-1 text-sm sm:text-base">Manage your professional profile and generate tailored CVs</p>
           </div>
           <div className="flex gap-3">
             {isEditing ? (
