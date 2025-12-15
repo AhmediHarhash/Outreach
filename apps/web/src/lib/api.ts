@@ -517,6 +517,114 @@ export interface LeadAnalysis {
   summary: string;
 }
 
+// ============================================================================
+// CV PROCESSING TYPES
+// ============================================================================
+
+export interface Skill {
+  name: string;
+  level?: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  category?: 'language' | 'framework' | 'tool' | 'soft_skill' | 'other';
+  yearsUsed?: number;
+}
+
+export interface Experience {
+  company: string;
+  title: string;
+  startDate: string;
+  endDate?: string;
+  current?: boolean;
+  location?: string;
+  description?: string;
+  achievements: string[];
+  technologies?: string[];
+}
+
+export interface Education {
+  institution: string;
+  degree: string;
+  field: string;
+  startDate?: string;
+  endDate: string;
+  gpa?: string;
+  achievements?: string[];
+}
+
+export interface Project {
+  name: string;
+  description: string;
+  url?: string;
+  technologies: string[];
+  highlights: string[];
+}
+
+export interface CVProfile {
+  fullName: string;
+  email: string;
+  phone?: string;
+  linkedin?: string;
+  github?: string;
+  portfolioUrl?: string;
+  location?: string;
+  headline?: string;
+  summary?: string;
+  yearsExperience?: number;
+  skills: Skill[];
+  languages?: Array<{ language: string; proficiency: string }>;
+  certifications?: Array<{ name: string; issuer: string; date: string; url?: string }>;
+  experience: Experience[];
+  education: Education[];
+  projects?: Project[];
+  desiredRoles?: string[];
+  desiredIndustries?: string[];
+  remotePreference?: 'remote' | 'hybrid' | 'onsite';
+}
+
+export interface ATSIssue {
+  issue: string;
+  severity: 'high' | 'medium' | 'low';
+  suggestion: string;
+  section?: string;
+}
+
+export interface CVAnalysis {
+  atsScore: number;
+  issues: ATSIssue[];
+  suggestions: Array<{
+    section: string;
+    suggestion: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
+  keywordMatch?: {
+    matched: string[];
+    missing: string[];
+    score: number;
+  };
+}
+
+export interface CVTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  previewImageUrl?: string;
+  isPremium: boolean;
+}
+
+export interface TailorCVRequest {
+  leadId?: string;
+  jobTitle?: string;
+  jobDescription?: string;
+  companyName?: string;
+  templateId?: string;
+}
+
+export interface TailorCVResponse {
+  tailoredProfile: CVProfile;
+  changes: string[];
+  generationId: string;
+}
+
 // Create base client
 const baseApi = new ApiClient();
 
@@ -615,5 +723,76 @@ export const api = Object.assign(baseApi, {
     return (baseApi as any).request(`/leads/${leadId}/analyze`, {
       method: 'POST',
     });
+  },
+
+  // ============================================================================
+  // CV PROCESSING
+  // ============================================================================
+
+  // Get user's CV profile
+  getCVProfile: async (): Promise<CVProfile> => {
+    return (baseApi as any).request('/cv/profile');
+  },
+
+  // Save CV profile
+  saveCVProfile: async (profile: Partial<CVProfile>): Promise<{ success: boolean; profileId: string }> => {
+    return (baseApi as any).request('/cv/profile', {
+      method: 'POST',
+      body: JSON.stringify(profile),
+    });
+  },
+
+  // Update CV profile
+  updateCVProfile: async (profile: Partial<CVProfile>): Promise<{ success: boolean; profileId: string }> => {
+    return (baseApi as any).request('/cv/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(profile),
+    });
+  },
+
+  // Analyze CV for ATS optimization
+  analyzeCV: async (jobDescription?: string): Promise<CVAnalysis> => {
+    return (baseApi as any).request('/cv/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ jobDescription }),
+    });
+  },
+
+  // Tailor CV for specific job/lead
+  tailorCV: async (params: TailorCVRequest): Promise<TailorCVResponse> => {
+    return (baseApi as any).request('/cv/tailor', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
+  // Generate HTML version of CV
+  generateCVHtml: async (templateId?: string): Promise<{ html: string }> => {
+    return (baseApi as any).request('/cv/generate-html', {
+      method: 'POST',
+      body: JSON.stringify({ templateId }),
+    });
+  },
+
+  // Generate HTML from custom profile data
+  generateCVHtmlCustom: async (profile: CVProfile, templateId?: string): Promise<{ html: string }> => {
+    return (baseApi as any).request('/cv/generate-html-custom', {
+      method: 'POST',
+      body: JSON.stringify({ profile, templateId }),
+    });
+  },
+
+  // Parse resume text into structured data
+  parseCVText: async (text: string): Promise<CVProfile> => {
+    return (baseApi as any).request('/cv/parse-text', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  },
+
+  // Get CV templates
+  getCVTemplates: async (category?: string): Promise<{ templates: CVTemplate[] }> => {
+    const query = category ? `?category=${category}` : '';
+    return (baseApi as any).request(`/cv/templates${query}`);
   },
 });
