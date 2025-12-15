@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
-import { api, Lead } from '@/lib/api';
+import { api, Lead, UpdateLeadRequest } from '@/lib/api';
 import { formatDate, getStatusColor, formatDuration } from '@/lib/utils';
 import Link from 'next/link';
 import {
@@ -35,7 +35,7 @@ export default function LeadDetailPage() {
   const { isAuthenticated, isLoading: authLoading, checkAuth } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<Partial<Lead>>({});
+  const [editData, setEditData] = useState<UpdateLeadRequest>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const leadId = params.id as string;
@@ -63,7 +63,7 @@ export default function LeadDetailPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<Lead>) => api.updateLead(leadId, data),
+    mutationFn: (data: UpdateLeadRequest) => api.updateLead(leadId, data),
     onSuccess: () => {
       toast.success('Lead updated');
       queryClient.invalidateQueries({ queryKey: ['lead', leadId] });

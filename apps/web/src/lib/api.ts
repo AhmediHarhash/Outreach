@@ -312,7 +312,24 @@ export interface CreateLeadRequest {
   source?: string;
 }
 
-export interface UpdateLeadRequest extends Partial<CreateLeadRequest> {}
+export interface UpdateLeadRequest {
+  company_name?: string;
+  company_domain?: string | null;
+  company_linkedin?: string | null;
+  company_size?: string | null;
+  contact_name?: string | null;
+  contact_title?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  contact_linkedin?: string | null;
+  industry?: string | null;
+  status?: string;
+  priority?: number;
+  notes?: string | null;
+  tags?: string[] | null;
+  tech_stack?: string[] | null;
+  source?: string | null;
+}
 
 export interface Recording {
   id: string;
