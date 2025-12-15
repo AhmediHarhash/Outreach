@@ -14,6 +14,10 @@ import {
   Clock,
   ChevronRight,
   Plus,
+  Mail,
+  Eye,
+  MousePointer,
+  Sparkles,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -39,6 +43,12 @@ export default function DashboardPage() {
   const { data: recordings } = useQuery({
     queryKey: ['recordings'],
     queryFn: () => api.getRecordings({ page: 1 }),
+    enabled: isAuthenticated,
+  });
+
+  const { data: emailStats } = useQuery({
+    queryKey: ['emailStats'],
+    queryFn: () => (api as any).getEmailStats(),
     enabled: isAuthenticated,
   });
 
@@ -68,6 +78,9 @@ export default function DashboardPage() {
               </Link>
               <Link href="/leads" className="text-muted-foreground hover:text-foreground">
                 Leads
+              </Link>
+              <Link href="/emails" className="text-muted-foreground hover:text-foreground">
+                Emails
               </Link>
               <Link href="/recordings" className="text-muted-foreground hover:text-foreground">
                 Recordings
@@ -106,19 +119,22 @@ export default function DashboardPage() {
             value={leads?.total || 0}
           />
           <StatCard
-            icon={<Phone className="w-5 h-5" />}
-            label="Calls This Week"
-            value={recordings?.total || 0}
+            icon={<Mail className="w-5 h-5" />}
+            label="Emails Sent"
+            value={emailStats?.total || 0}
+            subValue={emailStats?.openRate ? `${emailStats.openRate}% opened` : undefined}
+          />
+          <StatCard
+            icon={<Eye className="w-5 h-5" />}
+            label="Emails Opened"
+            value={emailStats?.opened || 0}
+            highlight
           />
           <StatCard
             icon={<TrendingUp className="w-5 h-5" />}
-            label="Qualified"
-            value={leads?.leads.filter(l => l.status === 'qualified').length || 0}
-          />
-          <StatCard
-            icon={<Clock className="w-5 h-5" />}
-            label="Follow-ups Due"
-            value={leads?.leads.filter(l => l.status === 'contacted').length || 0}
+            label="Reply Rate"
+            value={emailStats?.replied || 0}
+            subValue={emailStats?.replyRate ? `${emailStats.replyRate}%` : undefined}
           />
         </div>
 
@@ -130,6 +146,13 @@ export default function DashboardPage() {
           >
             <Plus className="w-4 h-4" />
             <span>Add Lead</span>
+          </Link>
+          <Link
+            href="/emails"
+            className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 transition-all"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Compose Email</span>
           </Link>
         </div>
 
@@ -231,20 +254,33 @@ function StatCard({
   icon,
   label,
   value,
+  subValue,
+  highlight,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
+  subValue?: string;
+  highlight?: boolean;
 }) {
   return (
-    <div className="bg-card rounded-xl border border-border p-6">
+    <div className={`bg-card rounded-xl border p-6 transition-all ${
+      highlight ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border'
+    }`}>
       <div className="flex items-center space-x-3">
-        <div className="p-2 rounded-lg bg-primary/10 text-primary">
+        <div className={`p-2 rounded-lg ${
+          highlight ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary/10 text-primary'
+        }`}>
           {icon}
         </div>
         <div>
           <p className="text-2xl font-bold">{value}</p>
           <p className="text-sm text-muted-foreground">{label}</p>
+          {subValue && (
+            <p className={`text-xs ${highlight ? 'text-emerald-400' : 'text-primary'}`}>
+              {subValue}
+            </p>
+          )}
         </div>
       </div>
     </div>

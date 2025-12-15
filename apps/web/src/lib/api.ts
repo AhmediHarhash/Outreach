@@ -379,4 +379,241 @@ export interface UserSettings {
 
 export interface UpdateSettingsRequest extends Partial<UserSettings> {}
 
-export const api = new ApiClient();
+// ============================================================================
+// EMAIL TYPES
+// ============================================================================
+
+export interface Email {
+  id: string;
+  toEmail: string;
+  subject: string;
+  status: 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced';
+  sentAt: string;
+  openedAt: string | null;
+  clickedAt: string | null;
+  leadId: string | null;
+  purpose: string | null;
+  companyName: string | null;
+  contactName: string | null;
+}
+
+export interface EmailDetail extends Email {
+  fromEmail: string;
+  metadata: Record<string, unknown>;
+  lead: {
+    id: string;
+    companyName: string;
+    contactName: string;
+    contactTitle: string;
+    contactEmail: string;
+    contactLinkedin: string;
+    industry: string;
+    companySize: string;
+    status: string;
+  } | null;
+  analysis: {
+    matchScore: number;
+    pros: Array<{ point: string; reasoning: string }>;
+    cons: Array<{ point: string; mitigation: string }>;
+    opportunities: Array<{ description: string; howToLeverage: string; potentialValue: string }>;
+    nextSteps: string[];
+    talkingPoints: string[];
+    questionsToAsk: string[];
+    summary: string;
+  } | null;
+}
+
+export interface EmailListResponse {
+  emails: Email[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+}
+
+export interface EmailStats {
+  total: number;
+  sent: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  replied: number;
+  bounced: number;
+  openRate: string;
+  clickRate: string;
+  replyRate: string;
+}
+
+export interface SendEmailRequest {
+  leadId: string;
+  templateId?: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText?: string;
+  purpose: string;
+}
+
+export interface GenerateEmailRequest {
+  leadId: string;
+  purpose: 'cold_outreach' | 'follow_up' | 'cv_submission' | 'meeting_request' | 'thank_you';
+  tone: 'formal' | 'professional' | 'casual' | 'friendly';
+  includeCV?: boolean;
+  customInstructions?: string;
+}
+
+export interface GeneratedEmail {
+  subject: string;
+  bodyHtml: string;
+  bodyText: string;
+}
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText: string | null;
+  category: string | null;
+  variables: string[];
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface TemplateListResponse {
+  systemTemplates: EmailTemplate[];
+  userTemplates: EmailTemplate[];
+}
+
+export interface CreateTemplateRequest {
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText?: string;
+  category?: string;
+  variables?: string[];
+}
+
+export interface GenerateTemplateRequest {
+  purpose?: string;
+  tone?: string;
+  industry?: string;
+  description?: string;
+}
+
+// ============================================================================
+// LEAD ANALYSIS TYPES
+// ============================================================================
+
+export interface LeadAnalysis {
+  matchScore: number;
+  pros: Array<{ point: string; reasoning: string }>;
+  cons: Array<{ point: string; mitigation: string }>;
+  opportunities: Array<{ description: string; howToLeverage: string; potentialValue: string }>;
+  skillsMatch: Array<{ skill: string; userLevel: string; requiredLevel: string; gap: boolean }>;
+  nextSteps: string[];
+  talkingPoints: string[];
+  questionsToAsk: string[];
+  summary: string;
+}
+
+// Create base client
+const baseApi = new ApiClient();
+
+// Extended API client with email methods
+export const api = Object.assign(baseApi, {
+  // Emails
+  getEmails: async (params?: { status?: string; leadId?: string; page?: number; perPage?: number }): Promise<EmailListResponse> => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.leadId) query.set('leadId', params.leadId);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.perPage) query.set('perPage', String(params.perPage));
+    return (baseApi as any).request(`/emails?${query}`);
+  },
+
+  getEmail: async (id: string): Promise<EmailDetail> => {
+    return (baseApi as any).request(`/emails/${id}`);
+  },
+
+  sendEmail: async (data: SendEmailRequest): Promise<{ success: boolean; emailId: string; messageId: string }> => {
+    return (baseApi as any).request('/emails/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  generateEmail: async (data: GenerateEmailRequest): Promise<GeneratedEmail> => {
+    return (baseApi as any).request('/emails/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getEmailStats: async (): Promise<EmailStats> => {
+    return (baseApi as any).request('/emails/stats/overview');
+  },
+
+  markEmailReplied: async (id: string): Promise<{ success: boolean }> => {
+    return (baseApi as any).request(`/emails/${id}/mark-replied`, {
+      method: 'POST',
+    });
+  },
+
+  deleteEmail: async (id: string): Promise<{ success: boolean }> => {
+    return (baseApi as any).request(`/emails/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Templates
+  getTemplates: async (category?: string): Promise<TemplateListResponse> => {
+    const query = category ? `?category=${category}` : '';
+    return (baseApi as any).request(`/templates${query}`);
+  },
+
+  getTemplate: async (id: string): Promise<EmailTemplate> => {
+    return (baseApi as any).request(`/templates/${id}`);
+  },
+
+  createTemplate: async (data: CreateTemplateRequest): Promise<EmailTemplate> => {
+    return (baseApi as any).request('/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateTemplate: async (id: string, data: Partial<CreateTemplateRequest>): Promise<EmailTemplate> => {
+    return (baseApi as any).request(`/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteTemplate: async (id: string): Promise<{ success: boolean }> => {
+    return (baseApi as any).request(`/templates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  generateTemplate: async (data: GenerateTemplateRequest): Promise<{ name: string; subject: string; bodyHtml: string; bodyText: string }> => {
+    return (baseApi as any).request('/templates/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  previewTemplate: async (id: string, leadId: string): Promise<{ subject: string; bodyHtml: string }> => {
+    return (baseApi as any).request(`/templates/${id}/preview`, {
+      method: 'POST',
+      body: JSON.stringify({ leadId }),
+    });
+  },
+
+  // Lead Analysis
+  analyzeLead: async (leadId: string): Promise<LeadAnalysis> => {
+    return (baseApi as any).request(`/leads/${leadId}/analyze`, {
+      method: 'POST',
+    });
+  },
+});
